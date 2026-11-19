@@ -37,6 +37,7 @@ env:
     openresty/set-misc-nginx-module
   # Don't update binaries with unchanged sources.
   SKIP_SAME_SOURCES: true
+  INPUT_APK_TOOLS_URL: https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v3.0.7/x86_64/apk.static#!sha256!c07bf5356eacc9dd7a8c56bc537f46702f007170287403299d52a04264e74b3c
 
 jobs:
   nginx-multi-linux:
@@ -72,7 +73,6 @@ jobs:
         with:
           arch: ${{ matrix.ARCH }}
           branch: ${{ env.ALPINE_BRANCH }}
-          apk-tools-url: https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v3.0.7/x86_64/apk.static#!sha256!c07bf5356eacc9dd7a8c56bc537f46702f007170287403299d52a04264e74b3c
           packages: >
             build-base
             jansson-dev
