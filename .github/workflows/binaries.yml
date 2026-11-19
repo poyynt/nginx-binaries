@@ -12,7 +12,7 @@ on:
       - scripts/*
   pull_request:
   schedule:
-    - cron:  '0 0 * * 0'  # run each Sunday
+    - cron:  '0 0 * * 4'  # run each Thursday
 
 env:
   ALPINE_BRANCH: v3.21
