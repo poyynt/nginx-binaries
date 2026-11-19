@@ -25,9 +25,6 @@ env:
   # List of extra nginx modules to download.
   # NOTE: nginx/njs is not defined here, but directly in the jobs.
   NGINX_MODULES: >-
-    kjdev/nginx-auth-jwt
-    kjdev/nginx-keyval
-    vision5/ngx_devel_kit
     openresty/echo-nginx-module
     openresty/headers-more-nginx-module
     openresty/set-misc-nginx-module
@@ -42,114 +39,6 @@ env:
   SKIP_SAME_SOURCES: true
 
 jobs:
-  njs-multi-linux:
-    name: njs-${{ matrix.NJS_VERSION }}${{ matrix.VARIANT }}-${{ matrix.ARCH }}-linux
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        NJS_VERSION:
-          - 0.x.x
-        VARIANT:
-          - '-debug'
-          - ''
-        ARCH:
-          - x86_64
-          - aarch64
-          - ppc64le
-    steps:
-      - name: Checkout master branch
-        uses: actions/checkout@v6
-        with:
-          path: master
-
-      - name: Download and extract njs
-        run: ./master/scripts/fetch-sources -d . nginx/njs@${{ matrix.NJS_VERSION }}
-
-      - name: Install Alpine ${{ env.ALPINE_BRANCH }} for ${{ matrix.ARCH }}
-        uses: jirutka/setup-alpine@v1
-        with:
-          arch: ${{ matrix.ARCH }}
-          branch: ${{ env.ALPINE_BRANCH }}
-          packages: >
-            build-base
-            libedit-dev
-            libedit-static
-            ncurses-dev
-            ncurses-static
-            openssl-dev
-            openssl-libs-static
-            pcre-dev
-            zlib-static
-
-      - name: Build njs
-        env:
-          VARIANT: ${{ matrix.VARIANT }}
-          CFLAGS: ${{ env.CFLAGS }}
-          LDFLAGS: ${{ env.LINUX_LDFLAGS }}
-        run: ./master/scripts/build-njs
-        shell: alpine.sh {0}
-
-      - name: Upload njs binary to artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: njs-${{ matrix.NJS_VERSION }}${{ matrix.VARIANT }}-${{ matrix.ARCH }}-linux
-          path: artifact/*
-
-  njs-darwin:
-    name: njs-${{ matrix.NJS_VERSION }}${{ matrix.VARIANT }}-${{ matrix.ARCH }}-darwin
-    runs-on: ${{ matrix.runs-on }}
-    strategy:
-      matrix:
-        ARCH:
-          - arm64
-          - x86_64
-        NJS_VERSION:
-          - 0.x.x
-        VARIANT:
-          - '-debug'
-          - ''
-        include:
-          - ARCH: arm64
-            PREFIX: /opt/homebrew
-            runs-on: macos-latest
-          - ARCH: x86_64
-            PREFIX: /usr/local
-            runs-on: macos-26-intel
-    steps:
-      - name: Install dependencies
-        run: brew install gsed jq libedit openssl@3 ncurses pcre zlib
-
-      - name: Checkout master branch
-        uses: actions/checkout@v6
-        with:
-          path: master
-
-      - name: Download and extract njs
-        run: ./master/scripts/fetch-sources -d . nginx/njs@${{ matrix.NJS_VERSION }}
-
-      # cmake prefers dynamic libs and there's no option to change it, so
-      # we have to remove them to give it no other option than using static.
-      - name: Remove dylibs
-        run: |
-          rm ${{ matrix.PREFIX }}/opt/libedit/lib/*.dylib
-          rm ${{ matrix.PREFIX }}/opt/openssl/lib/*.dylib
-          rm ${{ matrix.PREFIX }}/opt/ncurses/lib/*.dylib
-          rm ${{ matrix.PREFIX }}/opt/pcre/lib/*.dylib
-          rm ${{ matrix.PREFIX }}/opt/zlib/lib/*.dylib
-
-      - name: Build njs
-        env:
-          VARIANT: ${{ matrix.VARIANT }}
-          CFLAGS: ${{ env.CFLAGS }} -I${{ matrix.PREFIX }}/opt/libedit/include -I${{ matrix.PREFIX }}/opt/openssl/include -I${{ matrix.PREFIX }}/opt/ncurses/include -I${{ matrix.PREFIX }}/opt/pcre/include -I${{ matrix.PREFIX }}/opt/zlib/include
-          LDFLAGS: ${{ env.DARWIN_LDFLAGS }} -L${{ matrix.PREFIX }}/opt/libedit/lib -L${{ matrix.PREFIX }}/opt/openssl/lib -L${{ matrix.PREFIX }}/opt/ncurses/lib -L${{ matrix.PREFIX }}/opt/pcre/lib -L${{ matrix.PREFIX }}/opt/zlib/lib
-        run: ./master/scripts/build-njs
-
-      - name: Upload njs binary to artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: njs-${{ matrix.NJS_VERSION }}${{ matrix.VARIANT }}-${{ matrix.ARCH }}-darwin
-          path: artifact/*
-
   nginx-multi-linux:
     name: nginx-${{ matrix.NGINX_VERSION }}-${{ matrix.ARCH }}-linux
     runs-on: ubuntu-latest
@@ -161,8 +50,6 @@ jobs:
           - 1.31.x
         ARCH:
           - x86_64
-          - aarch64
-          - ppc64le
         include:
           - NJS_VERSION: 0.x.x
           # Pin older njs version for old stable nginx.
@@ -270,62 +157,11 @@ jobs:
           name: nginx-${{ matrix.NGINX_VERSION }}-${{ matrix.ARCH }}-darwin
           path: artifact/*
 
-  nginx-x86_64-win32:
-    name: nginx-${{ matrix.NGINX_VERSION }}-x86_64-win32
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        NGINX_VERSION:
-          - 1.28.x
-          - 1.30.x
-          - 1.31.x
-    steps:
-      - name: Setup MSYS2 and install packages
-        uses: msys2/setup-msys2@v2
-        with:
-          update: false
-          install: base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-jq
-
-      - name: Checkout master branch
-        uses: actions/checkout@v6
-        with:
-          path: master
-
-      - name: Download and extract nginx
-        shell: msys2 {0}
-        run: ./master/scripts/fetch-sources -d . nginx/nginx@release-${{ matrix.NGINX_VERSION }}
-
-      - name: Download and extract nginx modules
-        shell: msys2 {0}
-        run: ./master/scripts/fetch-sources $NGINX_MODULES_WIN32
-
-      - name: Download and extract libraries
-        shell: msys2 {0}
-        run: ./master/scripts/fetch-sources 'openssl@3.5.x' 'pcre@8.x' 'madler/zlib@v1.3.x'
-
-      - name: Build nginx
-        shell: msys2 {0}
-        env:
-          NGINX_MODULES: ${{ env.NGINX_MODULES_WIN32 }}
-          # -DFD_SETSIZE=1024 is per official nginx win32 binary.
-          CFLAGS: ${{ env.CFLAGS }} -DFD_SETSIZE=1024
-          LDFLAGS: ${{ env.WIN32_LDFLAGS }}
-        run: ./master/scripts/build-nginx
-
-      - name: Upload nginx binary to artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: nginx-${{ matrix.NGINX_VERSION }}-x86_64-win32
-          path: artifact/*
-
   upload:
     name: Upload binaries
     needs:
-      - njs-multi-linux
-      - njs-darwin
       - nginx-multi-linux
       - nginx-darwin
-      - nginx-x86_64-win32
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     container:
